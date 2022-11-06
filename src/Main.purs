@@ -2,23 +2,27 @@ module Main where
 
 import Prelude
 
-import Control.Monad.Free (Free, liftF, runFreeM)
+import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Exists (Exists, mkExists, runExists)
 import Effect (Effect)
 import Effect.Console (log)
 
-data FeedbackE f a = FeedbackE a (Array a -> f)
+data T f a b = T b (f b -> a)
 
-newtype FeedbackF f = FeedbackF (Exists (FeedbackE f))
+newtype TE f a = TE (Exists (T f a))
 
-instance Functor FeedbackF where
-  map f (FeedbackF e) = FeedbackF $ runExists (\(FeedbackE a g) -> mkExists $ FeedbackE a (f <<< g)) e
+instance Functor (TE f) where
+  map f (TE e) = TE $ runExists (\(T b g) -> mkExists $ T b (f <<< g)) e
+
+te :: forall f a. a -> TE f (f a)
+te a = TE $ mkExists $ T a identity
+
+unTe :: forall f a. (forall b. b -> f b) -> TE f a -> a
+unTe f (TE e) = runExists (\(T b g) -> g $ f b) e
 
 data TestF f
   = Log String f
-  | Feedback (FeedbackF f)
-
-derive instance Functor TestF
+  | Feedback (TE Array f)
 
 type TestM = Free TestF
 
@@ -26,7 +30,7 @@ logT :: String -> TestM Unit
 logT s = liftF $ Log s unit
 
 feedbackT :: forall a. a -> TestM (Array a)
-feedbackT a = liftF $ Feedback $ FeedbackF $ mkExists $ FeedbackE a identity
+feedbackT a = liftF $ Feedback $ te a
 
 test :: TestM Unit
 test = do
@@ -36,9 +40,9 @@ test = do
 interpreter :: TestF ~> Effect
 interpreter = case _ of
   Log s next -> log s *> pure next -- log
-  Feedback (FeedbackF e) -> runExists (\(FeedbackE a g) -> pure $ g [ a, a, a ]) e -- return array of 3 a's
+  Feedback t -> pure $ unTe (\a -> [ a, a, a ]) t -- return array of 3 a's
 
 main :: Effect Unit
 main = do
   -- result: [1, 1, 1]
-  runFreeM interpreter test
+  foldFree interpreter test
