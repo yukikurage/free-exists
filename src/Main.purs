@@ -40,5 +40,5 @@ interpreter = case _ of
 
 main :: Effect Unit
 main = do
+  -- result: [1, 1, 1]
   runFreeM interpreter test
--- result: [1, 1, 1]
