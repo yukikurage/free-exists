@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Exists (Exists, mkExists, runExists)
+import Data.Foldable (sum)
 import Effect (Effect)
 import Effect.Console (log)
 
@@ -19,6 +20,17 @@ te a = TE $ mkExists $ T a identity
 
 unTe :: forall f a. (forall b. b -> f b) -> TE f a -> a
 unTe f (TE e) = runExists (\(T b g) -> g $ f b) e
+
+type TEA = TE Array
+
+x :: TEA (Array Int)
+x = te 1
+
+y :: TEA Int
+y = map sum x
+
+z :: Int
+z = unTe (\i -> [ i, i, i ]) y
 
 data TestF f
   = Log String f
@@ -46,3 +58,5 @@ main :: Effect Unit
 main = do
   -- result: [1, 1, 1]
   foldFree interpreter test
+
+  log $ show z
