@@ -22,7 +22,7 @@ instance Functor (Lan g h) where
 lan :: forall g h a. h a -> Lan g h (g a)
 lan h = Lan $ mkExists $ LanHelper identity h
 
-unLan :: forall g h a. (forall b. h b -> g b) -> Lan g h a -> a
+unLan :: forall g h a. (h ~> g) -> Lan g h a -> a
 unLan f (Lan e) = runExists (\(LanHelper g b) -> g $ f b) e
 
 data TestF f
