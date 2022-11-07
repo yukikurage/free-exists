@@ -3,60 +3,51 @@ module Main where
 import Prelude
 
 import Control.Monad.Free (Free, foldFree, liftF)
+import Data.Array (head)
 import Data.Exists (Exists, mkExists, runExists)
-import Data.Foldable (sum)
+import Data.Maybe (Maybe)
 import Effect (Effect)
 import Effect.Console (log)
 
-data T f a b = T b (f b -> a)
+data LanHelper :: (Type -> Type) -> (Type -> Type) -> Type -> Type -> Type
+data LanHelper g h a b = LanHelper (g b -> a) (h b)
 
-newtype TE f a = TE (Exists (T f a))
+-- | GADTs
+-- | Lan :: (g b -> a) -> h b -> Lan g h a
+newtype Lan g h a = Lan (Exists (LanHelper g h a))
 
-instance Functor (TE f) where
-  map f (TE e) = TE $ runExists (\(T b g) -> mkExists $ T b (f <<< g)) e
+instance Functor (Lan g h) where
+  map f (Lan e) = Lan $ runExists (\(LanHelper g h) -> mkExists $ LanHelper (f <<< g) h) e
 
-te :: forall f a. a -> TE f (f a)
-te a = TE $ mkExists $ T a identity
+lan :: forall g h a. h a -> Lan g h (g a)
+lan h = Lan $ mkExists $ LanHelper identity h
 
-unTe :: forall f a. (forall b. b -> f b) -> TE f a -> a
-unTe f (TE e) = runExists (\(T b g) -> g $ f b) e
-
-type TEA = TE Array
-
-x :: TEA (Array Int)
-x = te 1
-
-y :: TEA Int
-y = map sum x
-
-z :: Int
-z = unTe (\i -> [ i, i, i ]) y
+unLan :: forall g h a. (forall b. h b -> g b) -> Lan g h a -> a
+unLan f (Lan e) = runExists (\(LanHelper g b) -> g $ f b) e
 
 data TestF f
   = Log String f
-  | Feedback (TE Array f)
+  | Feedback (Lan Maybe Array f)
 
 type TestM = Free TestF
 
 logT :: String -> TestM Unit
 logT s = liftF $ Log s unit
 
-feedbackT :: forall a. a -> TestM (Array a)
-feedbackT a = liftF $ Feedback $ te a
+feedbackT :: forall a. Array a -> TestM (Maybe a)
+feedbackT a = liftF $ Feedback $ lan a
 
 test :: TestM Unit
 test = do
-  as <- feedbackT 1
+  as <- feedbackT [ 1, 2, 3 ]
   logT $ show as
 
 interpreter :: TestF ~> Effect
 interpreter = case _ of
   Log s next -> log s *> pure next -- log
-  Feedback t -> pure $ unTe (\a -> [ a, a, a ]) t -- return array of 3 a's
+  Feedback t -> pure $ unLan head t -- return head
 
 main :: Effect Unit
 main = do
-  -- result: [1, 1, 1]
+  -- Result:  [ 1, 1, 1 ]
   foldFree interpreter test
-
-  log $ show z
