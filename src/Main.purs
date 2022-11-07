@@ -49,5 +49,5 @@ interpreter = case _ of
 
 main :: Effect Unit
 main = do
-  -- Result:  [ 1, 1, 1 ]
+  -- Result:  Just 1
   foldFree interpreter test
