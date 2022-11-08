@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "main": "npx spago run -m Main",
+    "loop": "npx spago run -m Loop"
   },
   "author": "",
   "license": "ISC",
