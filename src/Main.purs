@@ -2,8 +2,9 @@ module Main where
 
 import Prelude
 
+import Control.Apply (lift2)
 import Control.Monad.Free (Free, foldFree, liftF)
-import Data.Array (head)
+import Data.Array (filter, head, (..))
 import Data.Exists (Exists, mkExists, runExists)
 import Data.Maybe (Maybe)
 import Effect (Effect)
@@ -49,5 +50,7 @@ interpreter = case _ of
 
 main :: Effect Unit
 main = do
+  let
+    logT = 2
   -- Result:  Just 1
   foldFree interpreter test

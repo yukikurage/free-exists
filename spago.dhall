@@ -14,6 +14,7 @@ to generate this file without the comments in this block.
 , dependencies =
   [ "arrays"
   , "console"
+  , "debug"
   , "effect"
   , "exists"
   , "foldable-traversable"
@@ -21,6 +22,10 @@ to generate this file without the comments in this block.
   , "leibniz"
   , "maybe"
   , "prelude"
+  , "safely"
+  , "tailrec"
+  , "transformers"
+  , "unsafe-coerce"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
