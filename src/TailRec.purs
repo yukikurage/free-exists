@@ -552,4 +552,69 @@ stateLong8 = do
   put 1
   put 1
   put 1
+  stateLong9
+
+stateLong9 :: State Int Unit
+stateLong9 = do
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 1
+  put 2
   pure unit
