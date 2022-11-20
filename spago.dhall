@@ -16,6 +16,7 @@ to generate this file without the comments in this block.
   , "console"
   , "debug"
   , "effect"
+  , "either"
   , "exists"
   , "foldable-traversable"
   , "free"
