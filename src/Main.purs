@@ -2,33 +2,24 @@ module Main where
 
 import Prelude
 
-import Control.Apply (lift2)
-import Control.Monad.Free (Free, foldFree, liftF)
-import Data.Array (filter, head, (..))
-import Data.Exists (Exists, mkExists, runExists)
-import Data.Maybe (Maybe)
+import Control.Monad.Free (Free, foldFree, liftF, runFree, runFreeM)
+import Control.Monad.ST (ST, run)
+import Control.Safely (traverse_)
+import Data.Array (head, (..))
+import Data.Foldable (foldM)
+import Data.Maybe (Maybe(..))
+import Data.Traversable (traverse)
 import Effect (Effect)
 import Effect.Console (log)
-
-data LanHelper :: (Type -> Type) -> (Type -> Type) -> Type -> Type -> Type
-data LanHelper g h a b = LanHelper (g b -> a) (h b)
-
--- | GADTs
--- | Lan :: (g b -> a) -> h b -> Lan g h a
-newtype Lan g h a = Lan (Exists (LanHelper g h a))
-
-instance Functor (Lan g h) where
-  map f (Lan e) = Lan $ runExists (\(LanHelper g h) -> mkExists $ LanHelper (f <<< g) h) e
-
-lan :: forall g h a. h a -> Lan g h (g a)
-lan h = Lan $ mkExists $ LanHelper identity h
-
-unLan :: forall g h a. (h ~> g) -> Lan g h a -> a
-unLan f (Lan e) = runExists (\(LanHelper g b) -> g $ f b) e
+import IntPlus as IntPlus
+import Lan (Lan, lan, unLan)
 
 data TestF f
   = Log String f
   | Feedback (Lan Maybe Array f)
+  | Traverse (Array f)
+
+derive instance Functor TestF
 
 type TestM = Free TestF
 
@@ -43,14 +34,48 @@ test = do
   as <- feedbackT [ 1, 2, 3 ]
   logT $ show as
 
-interpreter :: TestF ~> Effect
+interpreter :: TestF (Free TestF Unit) -> Effect (Free TestF Unit)
 interpreter = case _ of
   Log s next -> log s *> pure next -- log
-  Feedback t -> pure $ unLan head t -- return head
+  Feedback t -> pure $ unLan (\arr callback -> callback $ head arr) t -- return head
+  Traverse arr -> pure $ traverse_ identity arr -- traverse
 
 main :: Effect Unit
 main = do
   let
     logT = 2
   -- Result:  Just 1
-  foldFree interpreter test
+  runFreeM interpreter test
+  log $ show value6
+
+main2 :: Effect Int
+main2 = foldM
+  do
+    \acc x -> do
+      log $ show x
+      pure $ acc + x
+  do 0
+  do 1 .. 10
+
+x :: forall a. Maybe a
+x = Nothing
+
+y :: forall b14 a15. b14 -> Maybe a15
+y = const x
+
+infixr 0 identity as $$
+
+mkST :: forall r. Int -> ST r Int
+mkST x = pure x
+
+testST :: Int
+testST = run do mkST 0
+
+testST2 :: Int
+testST2 = run $$ mkST 0
+
+value6 :: Int
+value6 = IntPlus.do
+  1
+  2
+  3
