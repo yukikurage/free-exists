@@ -26,7 +26,7 @@ _talk = Proxy :: Proxy "talk"
 speak :: forall r. String -> Run (TALK + r) Unit
 speak str = Run.lift _talk (Speak str unit)
 
-talkHandlerA :: forall r. Run (EFFECT + TALK + r) Unit -> Run (EFFECT + r) Unit
+talkHandlerA :: forall r a. Run (EFFECT + TALK + r) a -> Run (EFFECT + r) a
 talkHandlerA = interpretRec do
   on _talk
     ( case _ of
@@ -36,7 +36,7 @@ talkHandlerA = interpretRec do
     )
     send
 
-talkHandlerB :: forall r. Run (EFFECT + TALK + r) Unit -> Run (EFFECT + r) Unit
+talkHandlerB :: forall r a. Run (EFFECT + TALK + r) a -> Run (EFFECT + r) a
 talkHandlerB = interpretRec do
   on _talk
     ( case _ of
@@ -55,8 +55,11 @@ array arr = Run.lift _array arr
 
 arrayHandler :: forall r. Run (ARRAY + r) Unit -> Run r Unit
 arrayHandler = runRec do
+  let
+    interpreter :: Array (Run (ARRAY + r) Unit) -> Run r (Run (ARRAY + r) Unit)
+    interpreter arr = pure $ traverse_ identity arr
   on _array
-    (\arr -> pure $ traverse_ identity arr)
+    interpreter
     send
 
 hello :: forall r. Run (EFFECT + TALK + ARRAY + r) Unit

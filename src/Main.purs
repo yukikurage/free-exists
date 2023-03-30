@@ -2,10 +2,10 @@ module Main where
 
 import Prelude
 
-import Control.Monad.Free (Free, foldFree, liftF, runFree, runFreeM)
+import Control.Monad.Free (Free, liftF, resume)
 import Control.Monad.ST (ST, run)
-import Control.Safely (traverse_)
-import Data.Array (head, (..))
+import Data.Array (concat, head, (..))
+import Data.Either (Either(..))
 import Data.Foldable (foldM)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
@@ -26,26 +26,32 @@ type TestM = Free TestF
 logT :: String -> TestM Unit
 logT s = liftF $ Log s unit
 
-feedbackT :: forall a. Array a -> TestM (Maybe a)
-feedbackT a = liftF $ Feedback $ lan a
+headT :: forall a. Array a -> TestM (Maybe a)
+headT a = liftF $ Feedback $ lan a
 
-test :: TestM Unit
+traverseT :: forall a. Array a -> TestM a
+traverseT a = liftF $ Traverse a
+
+test :: TestM Int
 test = do
-  as <- feedbackT [ 1, 2, 3 ]
-  logT $ show as
+  i <- traverseT [ 1, 2, 3 ]
+  j <- traverseT [ 1, 2, 3 ]
+  logT $ show $ i + j
+  pure $ i + j
 
-interpreter :: TestF (Free TestF Unit) -> Effect (Free TestF Unit)
-interpreter = case _ of
-  Log s next -> log s *> pure next -- log
-  Feedback t -> pure $ unLan (\arr callback -> callback $ head arr) t -- return head
-  Traverse arr -> pure $ traverse_ identity arr -- traverse
+runTestF :: forall a. TestM a -> Effect (Array a)
+runTestF = resume >>> case _ of
+  Right a -> pure [ a ]
+  Left f -> case f of
+    Log s next -> log s *> runTestF next -- log
+    Feedback t -> unLan (\arr callback -> runTestF $ callback $ head arr) t -- return head
+    Traverse arr -> concat <$> traverse runTestF arr -- traverse
 
 main :: Effect Unit
 main = do
-  let
-    logT = 2
   -- Result:  Just 1
-  runFreeM interpreter test
+  result <- runTestF test
+  log $ show result
   log $ show value6
 
 main2 :: Effect Int
