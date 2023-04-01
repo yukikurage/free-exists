@@ -82,3 +82,7 @@ instance monadTellCo :: (Semigroup t, ComonadTraced t w) => MonadTell t (Co w) w
 
 instance monadFreeCo :: (Functor f, ComonadCofree f w) => MonadFree (Co f) (Co w) where
   wrapFree gco = Co \w -> sym pairCo runCo gco (unwrapCofree w)
+
+test :: forall f b a c. Functor f => ((c -> c) -> f ((a -> a) -> b)) -> f b
+test f =
+  map (\g -> g (\x -> x)) (f (\x -> x))
