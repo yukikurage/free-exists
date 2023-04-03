@@ -5,7 +5,7 @@ import Prelude
 import Control.Comonad (class Comonad)
 import Control.Extend (class Extend)
 import Data.Functor.Pairing (sym, zap, type (⋈))
-import Data.Functor.Pairing.Co (Co)
+import Data.Functor.Pairing.Co (Co, co, runCo)
 import Data.Lazy (Lazy, defer, force)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
@@ -103,3 +103,15 @@ streamShiftPair :: StreamW ⋈ Shift
 streamShiftPair f (StreamW a as) = case _ of
   NoShift b -> f a b
   Shift s -> streamShiftPair f (force as) s
+
+--  Co Shift と StreamW は同型か
+
+streamToCoShift :: forall a. StreamW a -> Co Shift a
+streamToCoShift stream = co (f stream)
+  where
+  f :: forall r. StreamW a -> Shift (a -> r) -> r
+  f acc (NoShift k) = k (headS acc)
+  f acc (Shift s) = f (tailS acc) s
+
+coShiftToStream :: forall a. Co Shift a -> StreamW a
+coShiftToStream coShift = unfoldS (\acc -> Tuple (runCo coShift acc) (Shift acc)) $ NoShift identity
