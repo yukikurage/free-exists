@@ -2,9 +2,9 @@ module ExtensibleTree where
 
 import Prelude
 
-import Control.Comonad.Cofree (Cofree, head, mkCofree, tail)
+import Control.Comonad.Cofree (Cofree, head, mkCofree, tail, (:<))
 import Data.Foldable (class Foldable)
-import Data.Functor.Variant (class FoldableVFRL, class TraversableVFRL, class VariantFShows, VariantF, case_, inj, on)
+import Data.Functor.Variant (class VariantFShows, VariantF, case_, inj, on)
 import Data.Newtype (class Newtype, unwrap, wrap)
 import Data.Traversable (class Traversable)
 import Data.Variant.Internal (class VariantTags)
@@ -14,43 +14,43 @@ import Prim.RowList (class RowToList)
 import Type.Proxy (Proxy(..))
 import Type.Row (type (+))
 
-newtype ExTree r a = ExTree (Cofree (VariantF r) a)
-
-derive instance Newtype (ExTree r a) _
-derive instance Functor (ExTree r)
-derive newtype instance (RowToList row rl, FoldableVFRL rl row) => Foldable (ExTree row)
-derive newtype instance (RowToList row rl, TraversableVFRL rl row) => Traversable (ExTree row)
-instance (RowToList r rl, VariantTags rl, VariantFShows rl (ExTree r a), Show a) => Show (ExTree r a) where
-  show et = show (nodeValue et) <> "(" <> show (children et) <> ")"
+type ExTree r a = Cofree (VariantF r) a
 
 type ExForest r a = VariantF r (ExTree r a)
 
 mkTree :: forall r a. a -> ExForest r a -> ExTree r a
-mkTree a forest = ExTree $ mkCofree a $ map unwrap forest
+mkTree = mkCofree
 
-nodeValue :: forall r a. ExTree r a -> a
-nodeValue (ExTree et) = head et
+newtype StringForShow = StringForShow String
 
-children :: forall r a. ExTree r a -> ExForest r a
-children (ExTree et) = map wrap $ tail et
+instance Show StringForShow where
+  show (StringForShow s) = s
 
--- drawTree :: forall r rl. RowToList r rl => VariantTags rl => VariantFShows rl String => ExTree r String -> String
--- drawTree et = nodeValue et <> "(" <> fold (map drawTree $ children et) <> ")"
+derive instance Newtype StringForShow _
 
--- showTree :: forall r rl a. RowToList r rl => VariantTags rl => VariantFShows rl String => Show a => ExTree r a -> String
--- showTree = drawTree <<< map show
+drawTree :: forall r rl. RowToList r rl => VariantTags rl => VariantFShows rl StringForShow => ExTree r String -> String
+drawTree = unwrap <<< internal
+  where
+  internal :: ExTree r String -> StringForShow
+  internal et = wrap $ head et <> "(" <> show (map internal $ tail et) <> ")"
+
+showTree :: forall r rl a. RowToList r rl => VariantTags rl => VariantFShows rl StringForShow => Show a => ExTree r a -> String
+showTree = drawTree <<< map show
 
 scanTree :: forall r a b. (a -> b -> b) -> b -> ExTree r a -> ExTree r b
-scanTree f b et = mkTree (f (nodeValue et) b) $ map (scanTree f b) (children et)
+scanTree f b et = f (head et) b :< map (scanTree f b) (tail et)
 
 setNodeValue :: forall r a. a -> ExTree r a -> ExTree r a
-setNodeValue a et = mkTree a $ children et
+setNodeValue a et = a :< tail et
 
 modifyNodeValue :: forall r a. (a -> a) -> ExTree r a -> ExTree r a
-modifyNodeValue f et = mkTree (f (nodeValue et)) $ children et
+modifyNodeValue f et = f (head et) :< tail et
 
 foldTree :: forall r a b. (a -> VariantF r b -> b) -> ExTree r a -> b
-foldTree f et = f (nodeValue et) $ map (foldTree f) $ children et
+foldTree f et = f (head et) $ map (foldTree f) $ tail et
+
+foldTreeWithDepth :: forall r a b. (a -> Int -> VariantF r b -> b) -> Int -> ExTree r a -> b
+foldTreeWithDepth f d et = f (head et) d $ map (foldTreeWithDepth f (d + 1)) $ tail et
 
 ----------
 -- TEST --
@@ -69,6 +69,9 @@ type ADD r = (add :: AddExp | r)
 _add :: Proxy "add"
 _add = Proxy
 
+addE :: forall r. ExTree (ADD + r) Unit -> ExTree (ADD + r) Unit -> ExTree (ADD + r) Unit
+addE a b = mkTree unit $ inj _add (AddExp a b)
+
 data MulExp a = MulExp a a
 
 derive instance Functor MulExp
@@ -81,6 +84,9 @@ type MUL r = (mul :: MulExp | r)
 
 _mul :: Proxy "mul"
 _mul = Proxy
+
+mulE :: forall r. ExTree (MUL + r) Unit -> ExTree (MUL + r) Unit -> ExTree (MUL + r) Unit
+mulE a b = mkTree unit $ inj _mul (MulExp a b)
 
 data ValExp :: Type -> Type -> Type
 data ValExp v a = ValExp v
@@ -96,6 +102,9 @@ type VAL v r = (val :: ValExp v | r)
 _val :: Proxy "val"
 _val = Proxy
 
+valE :: forall v r. v -> ExTree (VAL v + r) Unit
+valE v = mkTree unit $ inj _val (ValExp v)
+
 type Exp v = ExTree (ADD + MUL + VAL v + ()) Unit
 
 eval :: forall v. Semiring v => Exp v -> v
@@ -109,18 +118,9 @@ eval = foldTree $ \_ -> f
 
 -- | 1 + 2 * 3
 test :: Exp Int
-test = mkTree unit $ inj _add
-  ( AddExp
-      (mkTree unit $ inj _val (ValExp 1))
-      ( mkTree unit $ inj _mul
-          ( MulExp
-              (mkTree unit $ inj _val (ValExp 2))
-              (mkTree unit $ inj _val (ValExp 3))
-          )
-      )
-  )
+test = addE (valE 1) (mulE (valE 2) (valE 3))
 
 main :: Effect Unit
 main = do
-  log $ show test
+  log $ showTree test
   log $ show $ eval test
