@@ -2,116 +2,58 @@ module Stream where
 
 import Prelude
 
-import Control.Comonad (class Comonad)
-import Control.Extend (class Extend)
-import Data.Functor.Pairing (sym, zap, type (⋈))
-import Data.Functor.Pairing.Co (Co, co, runCo)
-import Data.Lazy (Lazy, defer, force)
+import Control.Comonad.Cofree (Cofree, buildCofree, deferCofree)
+import Control.Monad.Free (Free, liftF)
+import Data.Functor.Pairing (freeCofree, sym, zap, type (⋈))
+import Data.Functor.Pairing as Pairing
+import Data.Identity (Identity(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Class.Console (log, logShow)
+import Effect.Class.Console (log)
 
-data StreamW a = StreamW a (Lazy (StreamW a))
+type Stream a = Cofree Identity a
 
-derive instance Functor StreamW
-instance Extend StreamW where
-  extend :: forall a b. (StreamW a -> b) -> StreamW a -> StreamW b
-  extend f = unfoldS \s' -> Tuple (f s') $ tailS s'
+iterate :: forall a. (a -> a) -> a -> Stream a
+iterate f a = deferCofree \_ -> Tuple a $ Identity $ iterate f (f a)
 
-instance Comonad StreamW where
-  extract :: forall a. StreamW a -> a
-  extract = headS
-
-iterateS :: forall a. (a -> a) -> a -> StreamW a
-iterateS f a = StreamW a $ defer \_ -> iterateS f (f a)
-
-unfoldS :: forall a b. (b -> Tuple a b) -> b -> StreamW a
-unfoldS f b =
-  let
-    Tuple a b' = f b
-  in
-    StreamW a $ defer \_ -> unfoldS f b'
-
-unconsS :: forall a. StreamW a -> { head :: a, tail :: StreamW a }
-unconsS (StreamW a as) = { head: a, tail: force as }
-
-headS :: forall a. StreamW a -> a
-headS (StreamW a _) = a
-
-tailS :: forall a. StreamW a -> StreamW a
-tailS (StreamW _ as) = force as
-
-indexS :: forall a. StreamW a -> Int -> a
-indexS s 0 = headS s
-indexS s i = indexS (tailS s) (i - 1)
-
-type StreamM = Co StreamW
+type Shift = Free Identity
 
 shift :: Shift Unit
-shift = Shift $ NoShift unit
+shift = liftF $ Identity unit
 
-streamW :: StreamW Int
-streamW = iterateS (_ * 2) 1
+interpreter :: Stream (Int -> String)
+interpreter =
+  let
+    f :: Int -> Tuple (Int -> String) (Identity Int)
+    f sft = Tuple (\x -> "shift: " <> show sft <> ", result: " <> show x) $ Identity $ sft + 1
+  in
+    buildCofree f 0
 
-streamM :: Shift (Int -> String)
-streamM = do
+program :: Shift Int
+program = do
   shift
   shift
   shift
   shift
-  pure $ \x -> "x: " <> show x
+  pure 10
 
 result :: String
-result = zap (sym streamShiftPair) streamM streamW
+result = zap (sym (freeCofree Pairing.identity)) interpreter program
 
 main :: Effect Unit
-main = do
-  log result
-  logShow $ apply (pure (_ + 1) <* shift <* shift) (pure 1 <* shift <* shift)
+main = log result *> log resultT
 
-data Shift a = NoShift a | Shift (Shift a)
+tupleFunc :: forall s. Tuple s ⋈ Function s
+tupleFunc f (Tuple s a) g = f a (g s)
 
-instance Show a => Show (Shift a) where
-  show (NoShift a) = "(NoShift " <> show a <> ")"
-  show (Shift s) = "(Shift " <> show s <> ")"
+programF :: Int -> Int
+programF = do
+  x <- (_ + 1)
+  y <- (_ * 2)
+  pure $ x + y
 
-instance Functor Shift where
-  map :: forall a b. (a -> b) -> Shift a -> Shift b
-  map f (NoShift a) = NoShift (f a)
-  map f (Shift s) = Shift (map f s)
+interpreterT :: Tuple Int (Int -> String)
+interpreterT = Tuple 10 \x -> "result: " <> show x
 
-instance Apply Shift where
-  apply :: forall a b. Shift (a -> b) -> Shift a -> Shift b
-  apply (NoShift f) a = map f a
-  apply s (NoShift a) = map (_ $ a) s
-  apply (Shift sf) s = Shift (apply sf s)
-
-instance Applicative Shift where
-  pure :: forall a. a -> Shift a
-  pure = NoShift
-
-instance Bind Shift where
-  bind :: forall a b. Shift a -> (a -> Shift b) -> Shift b
-  bind (NoShift a) f = f a
-  bind (Shift s) f = Shift (bind s f)
-
-instance Monad Shift
-
--- | f ⋈ g = forall a b c. (a -> b -> c) -> f a -> g b -> c
-
-streamShiftPair :: StreamW ⋈ Shift
-streamShiftPair f (StreamW a as) = case _ of
-  NoShift b -> f a b
-  Shift s -> streamShiftPair f (force as) s
-
---  Co Shift と StreamW は同型か
-
-streamToCoShift :: forall a. StreamW a -> Co Shift a
-streamToCoShift stream = co (f stream)
-  where
-  f :: forall r. StreamW a -> Shift (a -> r) -> r
-  f acc (NoShift k) = k (headS acc)
-  f acc (Shift s) = f (tailS acc) s
-
-coShiftToStream :: forall a. Co Shift a -> StreamW a
-coShiftToStream coShift = unfoldS (\acc -> Tuple (runCo coShift acc) (Shift acc)) $ NoShift identity
+resultT :: String
+resultT = zap tupleFunc interpreterT programF

@@ -18,7 +18,6 @@ module Data.Functor.Pairing
 
 import Prelude
 
-import Control.Comonad (class Comonad)
 import Control.Comonad.Cofree (Cofree, explore)
 import Control.Comonad.Env.Trans (EnvT(..))
 import Control.Comonad.Store.Trans (StoreT(..))
@@ -32,7 +31,6 @@ import Data.Functor.Coproduct (Coproduct(..))
 import Data.Functor.Product (Product(..))
 import Data.Identity (Identity(..))
 import Data.Tuple (Tuple(..))
-import Prelude as Prelude
 
 -- | A pairing between functors `f` and `g`.
 -- |
@@ -48,8 +46,8 @@ infix 4 type Pairing as ⋈
 zap :: forall f g a b. f ⋈ g -> f (a -> b) -> g a -> b
 zap pairing = pairing ($)
 
-interpret :: forall f g a. Functor f => f ⋈ g -> f Unit -> g a -> a
-interpret pairing f = zap pairing (f $> Prelude.identity)
+interpret :: forall f g a. f ⋈ g -> f a -> g Unit -> a
+interpret pairing = pairing const
 
 -- | Pairing is symmetric
 sym :: forall f g. f ⋈ g -> g ⋈ f
@@ -84,22 +82,3 @@ writerTraced pairing f (WriterT writer) (TracedT gf) =
 -- | `Free` pairs with `Cofree`.
 freeCofree :: forall f g. Functor f => Functor g => f ⋈ g -> Free f ⋈ Cofree g
 freeCofree pairing f = explore (zap pairing) <<< map f
-
-data F s a = F (s -> a)
-
-type FF s = Free (F s)
-
-{-
-data Free f a
-  = Pure a
-  | Free (f (Free f a))
-
-FF s a
-~ Free (F s) a
-~ Pure a | Free (F s (Free (F s) a))
-~ Pure a | Free (F s (FF s a))
-
-より次と同型
-
-data T a = L a | R (s -> T a)
--}

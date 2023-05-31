@@ -3,6 +3,7 @@ module ExtensibleTree where
 import Prelude
 
 import Control.Comonad.Cofree (Cofree, head, mkCofree, tail, (:<))
+import Control.Extend (extend)
 import Data.Foldable (class Foldable)
 import Data.Functor.Variant (class VariantFShows, VariantF, case_, inj, on)
 import Data.Newtype (class Newtype, unwrap, wrap)
@@ -105,9 +106,9 @@ _val = Proxy
 valE :: forall v r. v -> ExTree (VAL v + r) Unit
 valE v = mkTree unit $ inj _val (ValExp v)
 
-type Exp v = ExTree (ADD + MUL + VAL v + ()) Unit
+type Exp v a = ExTree (ADD + MUL + VAL v + ()) a
 
-eval :: forall v. Semiring v => Exp v -> v
+eval :: forall v a. Semiring v => Exp v a -> v
 eval = foldTree $ \_ -> f
   where
   f :: VariantF (ADD + MUL + VAL v + ()) v -> v
@@ -116,11 +117,15 @@ eval = foldTree $ \_ -> f
     # on _mul (\(MulExp a b) -> a * b)
     # on _val (\(ValExp v) -> v)
 
+evalAll :: forall v a. Semiring v => Exp v a -> Exp v v
+evalAll = extend eval
+
 -- | 1 + 2 * 3
-test :: Exp Int
+test :: Exp Int Unit
 test = addE (valE 1) (mulE (valE 2) (valE 3))
 
 main :: Effect Unit
 main = do
   log $ showTree test
   log $ show $ eval test
+  log $ showTree $ evalAll test

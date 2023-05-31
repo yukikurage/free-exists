@@ -32,6 +32,7 @@ to generate this file without the comments in this block.
   , "ordered-collections"
   , "pairs"
   , "prelude"
+  , "profunctor-lenses"
   , "qualified-do"
   , "run"
   , "safely"
