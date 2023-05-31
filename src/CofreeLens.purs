@@ -2,45 +2,35 @@ module CofreeLens where
 
 import Prelude
 
-import Control.Comonad.Cofree (Cofree, buildCofree, explore, head, tail, (:<))
-import Control.Comonad.Env (Env, env)
-import Control.Monad.Free (Free, liftF, resume, resume')
+import Control.Comonad.Cofree (Cofree, buildCofree, head, tail, (:<))
+import Control.Comonad.Env (Env, env, runEnv)
+import Control.Monad.Free (Free, liftF, resume, wrap)
 import Control.Monad.Reader (Reader, asks, runReader)
 import Data.Array (uncons)
 import Data.Either (Either(..))
-import Data.Functor.Pairing (Pairing, zap)
-import Data.Functor.Pairing as Pairing
-import Data.Lens (Lens, Lens', lens, set, view, (.~), (^.))
+import Data.Lens (Lens', _2, lens, set, view)
 import Data.Maybe (Maybe(..))
-import Data.Traversable (traverse_)
 import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested (type (/\), (/\))
 import Effect (Effect)
 import Effect.Class.Console (logShow)
 
--- f の Lens' の Free を Cofree の Lens' に変換する
-freeToLens'
-  :: forall f g a
-   . Functor f
-  => Functor g
-  => (forall x y z. (x -> y -> z) -> f x -> g y -> z) -- Getter 用の Pair
-  -> (forall x y z. (x -> z) -> (y -> z) -> f x -> g y -> Tuple (f z) (g z)) -- Setter 用の Pair
-  -> Tuple (f z) (g z)
-  -> Free g Unit
-  -> Lens' (Cofree f a) a
-freeToLens' getPair setPair free = lens (get free) set
+-- f と g が互いに Getter Setter になっているとき、その関係を Free と Cofree に持ち上げる
+liftLensF' :: forall f g. Functor f => Functor g => (forall x y. Lens' (f x /\ g y) (x /\ y)) -> forall x y. Lens' (Free f x /\ Cofree g y) (x /\ y)
+liftLensF' lns = lens getter setter
   where
-  get :: Free g Unit -> Cofree g a -> a
-  get fr cf = case resume fr of
-    Left (next :: g (Free g Unit)) -> get nx tl
-      where
-      Tuple tl nx = lns next $ tail cf
-    Right _ -> head cf
+  getter :: forall x y. Free f x /\ Cofree g y -> x /\ y
+  getter (fr /\ cf) = case resume fr of
+    Left next -> getter $ view lns $ next /\ tail cf
+    Right x -> x /\ head cf
 
-  set :: Free g Unit -> a -> Cofree g a -> Cofree g a
-  set fr a cf = case resume fr of
-    Left (next :: g (Free g Unit)) -> head cf :< set
+  setter :: forall x y. Free f x /\ Cofree g y -> x /\ y -> Free f x /\ Cofree g y
+  setter (fr /\ cf) (x /\ y) = case resume fr of
+    Left next -> wrap frSet /\ (head cf :< cfSet)
       where
-      Tuple
+      viewed = view lns $ next /\ tail cf
+      frSet /\ cfSet = set lns (setter viewed $ x /\ y) $ next /\ tail cf
+    Right _ -> pure x /\ (y :< tail cf)
 
 {-
 実際に使ってみる
@@ -62,17 +52,27 @@ viewMoore xs moore = case uncons xs of
 -- CoMoore も作っておく
 type CoMoore x a = Free (Env x) a
 
--- Pairing (Env x) (Reader x) を作っておく（あとで使う）
-envReader :: forall x a b c. (a -> b -> c) -> Env x a -> Reader x b -> c
-envReader = Pairing.sym (Pairing.readerEnv Pairing.identity)
+-- Env と Reader のお互いへの Lens を作る
+readerEnvLens :: forall x a b. Eq x => Lens' (Env x a /\ Reader x b) (a /\ b)
+readerEnvLens = lens getter setter
+  where
+  getter :: Env x a /\ Reader x b -> a /\ b
+  getter (ev /\ rd) = a /\ runReader rd x
+    where
+    x /\ a = runEnv ev
+
+  setter :: Env x a /\ Reader x b -> a /\ b -> Env x a /\ Reader x b
+  setter (ev /\ rd) (newA /\ newB) = env x newA /\ (asks \x' -> if x' == x then newB else runReader rd x')
+    where
+    x /\ _ = runEnv ev
+
+-- 上で作った Lens を使って CoMoore と Moore のお互いへの Lens を作る
+mooreCoMooreLens :: forall x a b. Eq x => Lens' (CoMoore x a /\ Moore x b) (a /\ b)
+mooreCoMooreLens = liftLensF' readerEnvLens
 
 -- CoMoore の構成
 transition :: forall x. x -> Free (Env x) Unit
 transition x = liftF $ env x unit
-
--- 複数回 transition する
-transitions :: forall x. Array x -> Free (Env x) Unit
-transitions xs = traverse_ transition xs
 
 -- 例として Moore マシンを作成する
 -- イベントとして Int が与えられるので、状態に足していく、 View は状態をそのまま返す
@@ -85,21 +85,24 @@ mooreMachine = buildMoore update view 0
   view :: Int -> Int
   view s = s
 
--- Lens' を作成する
--- ここでは例として 2, 3, 1 と遷移する
-mooreLens :: Lens' (Moore Int Int) Int
-mooreLens = freeToLens' envReader $ transitions [ 2, 3, 1 ]
-
--- mooreLens で一部だけ値を替える
-mooreMachine2 :: Moore Int Int
-mooreMachine2 = {- set mooreLens 10000 mooreMachine -}  embed (zap envReader) (transitions [ 2, 3, 1 ] $> 10000) mooreMachine
+-- 例 CoMoore
+-- モナドで構成できる
+coMooreMachine :: CoMoore Int Unit
+coMooreMachine = do
+  transition 2
+  transition 3
+  transition 1
 
 -- 確認
 main :: Effect Unit
 main = do
   logShow $ viewMoore [ 2, 3, 1 ] mooreMachine -- 6
   logShow $ viewMoore [ 1, 2, 4 ] mooreMachine -- 7
-  logShow $ view mooreLens mooreMachine -- 6
+  logShow $ view (mooreCoMooreLens <<< _2) $ coMooreMachine /\ mooreMachine -- 6
 
-  logShow $ viewMoore [ 2, 3, 1 ] mooreMachine2 -- 10000
-  logShow $ viewMoore [ 1, 2, 4 ] mooreMachine2 -- 7 のまま
+  -- Moore マシンの一部だけ更新する
+  let
+    _ /\ moore2 = set (mooreCoMooreLens <<< _2) 10000 $ coMooreMachine /\ mooreMachine
+
+  logShow $ viewMoore [ 2, 3, 1 ] moore2 -- 10000
+  logShow $ viewMoore [ 1, 2, 4 ] moore2 -- 7 のまま
