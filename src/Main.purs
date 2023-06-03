@@ -66,7 +66,7 @@ main2 = foldM
 x :: forall a. Maybe a
 x = Nothing
 
-y :: forall b14 a15. b14 -> Maybe a15
+y :: forall b a. b -> Maybe a
 y = const x
 
 infixr 0 identity as $$

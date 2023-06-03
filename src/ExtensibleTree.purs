@@ -129,3 +129,9 @@ main = do
   log $ showTree test
   log $ show $ eval test
   log $ showTree $ evalAll test
+
+{-
+Ref;
+
+https://github.com/xgrommx/fun-with-programming/blob/main/purescript/app/src/EADT.purs#L63-L64
+-}

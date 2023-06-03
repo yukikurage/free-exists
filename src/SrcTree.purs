@@ -2,21 +2,16 @@ module SrcTree where
 
 import Prelude
 
-import Data.Array (uncons)
+import Control.Alt (class Alt)
+import Control.Comonad.Cofree (Cofree, (:<))
+import Data.List (List(..))
 import Data.Map (Map)
-import Data.Set (Set)
+import Data.Map as Map
 
-newtype FileMeta = FileMeta
-  { fileName :: String
-  }
+fromPath :: List String -> SrcTree Unit
+fromPath = case _ of
+  Nil -> unit :< mempty
+  Cons x xs -> unit :< Map.singleton x (fromPath xs)
 
-newtype DirMeta = DirMeta
-  { dirName :: String
-  , dirFiles :: Map String FileMeta
-  , dirDirs :: Map String DirMeta
-  }
-
-data SrcTree = SrcTree
-  { srcTreeFiles :: Map String FileMeta
-  , srcTreeDirs :: Map String DirMeta
-  }
+-- fromPaths :: List (List String) -> SrcTree Unit
+-- fromPaths =
