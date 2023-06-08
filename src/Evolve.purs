@@ -153,3 +153,22 @@ mainSh = do
           ]
       )
   logShow $ evalEvolve steps someEvolve -- 10
+  let
+    steps2 =
+      ( map
+          ( \f ->
+              let
+                g x = f
+                  ( unRecordF x
+                      :: { receiver :: Event -> _
+                         , stepper :: Identity _
+                         }
+                  )
+              in
+                g
+          )
+          [ \{ receiver } -> receiver $ Step 3 -- +3
+          , \{ receiver } -> receiver $ Step 5 -- +5
+          ]
+      )
+  logShow $ evalEvolve steps2 someEvolve -- 8

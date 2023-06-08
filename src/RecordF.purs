@@ -19,21 +19,15 @@ import Unsafe.Coerce (unsafeCoerce)
 {-
 in TS;
 
+^^
+
 Map<String, {
   value: any,
   map: (f: (a: any) -> any) -> (value: any) -> any
 }>
 -}
-foreign import data RecordF :: Row (Type -> Type) -> Type -> Type
 
--- newtype RecordFRep :: Row (Type -> Type) -> Type -> Type
--- newtype RecordFRep fr a = RecordFRep
---   ( Array
---       { label :: String
---       , value :: Value
---       , map :: (Value -> Value) -> Value -> Value
---       }
---   )
+foreign import data RecordF :: Row (Type -> Type) -> Type -> Type
 
 class RecordFCoercible :: Row Type -> Row (Type -> Type) -> Type -> Constraint
 class RecordFCoercible r f a where
