@@ -4,14 +4,14 @@ import Prelude
 
 import Control.Comonad.Cofree (Cofree, buildCofree, tail)
 import Control.Monad.Free (Free, liftF, resume)
-import Control.Monad.State (State, get, put)
+import Control.Monad.State (State, evalState, get, put)
 import Data.Coyoneda (Coyoneda, liftCoyoneda, unCoyoneda)
 import Data.Either (Either(..))
 import Data.Functor.Pairing (type (⋈), freeCofree, sym, zap)
 import Data.Leibniz (type (~), coerce, symm)
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Class.Console (logShow)
+import Effect.Class.Console (log, logShow)
 
 -- From
 -- https://github.com/wasabi315/kitchen-sink/blob/main/haskell/shallow-handlers/app/Main.hs#L64
@@ -64,8 +64,8 @@ handleState s = Wtf case _ of
 coiter :: forall f a. Functor f => (a -> f a) -> a -> Cofree f a
 coiter f a = buildCofree (\acc -> Tuple acc (f acc)) a
 
-evalState :: forall s a. Freer (StateF s) a -> s -> a
-evalState m s = zap (sym freerCofreer) (identity <$ coiter handleState s) m
+evalStateT :: forall s a. Freer (StateF s) a -> s -> a
+evalStateT m s = zap (sym freerCofreer) (identity <$ coiter handleState s) m
 
 test :: Freer (StateF Int) (Array Int)
 test = do
@@ -77,23 +77,17 @@ test = do
   d <- getF
   pure [ a, b, c, d ]
 
-main :: Effect Unit
-main = logShow $ evalState test 0
+newtype WtfT f m a = WtfT (forall x. f x -> m (Tuple x a))
 
-newtype WtfT :: forall k. (k -> Type) -> (k -> Type) -> Type -> Type
-newtype WtfT f m a = WtfT (forall x. f x -> Tuple (m x) a)
+instance Functor m => Functor (WtfT f m) where
+  map f (WtfT g) = WtfT \fx -> map f <$> g fx
 
-instance Functor (WtfT f m) where
-  map f (WtfT g) = WtfT \fx -> case g fx of
-    Tuple mx a -> Tuple mx (f a)
-
-type CofreerT :: forall k. (k -> Type) -> (k -> Type) -> Type -> Type
 type CofreerT f m = Cofree (WtfT f m)
 
 handleStateT :: forall s. WtfT (StateF s) (State s) Unit
 handleStateT = WtfT case _ of
-  Get lbz -> Tuple (get <#> \s -> coerce (symm lbz) s) unit
-  Put s' lbz -> Tuple (put s' $> coerce (symm lbz) unit) unit
+  Get lbz -> get <#> \s -> Tuple (coerce (symm lbz) s) unit
+  Put s' lbz -> put s' $> Tuple (coerce (symm lbz) unit) unit
 
 monadicWithCofreeT :: forall f m a. Monad m => Freer f a -> CofreerT f m Unit -> m a
 monadicWithCofreeT fr cf = case resume fr of
@@ -102,8 +96,8 @@ monadicWithCofreeT fr cf = case resume fr of
     ( \bToFr fb -> do
         let
           WtfT f = tail cf
-          Tuple mb t = f fb
-        b <- mb
+          mbt = f fb
+        Tuple b t <- mbt
         monadicWithCofreeT (bToFr b) t
     )
     coyo
@@ -113,3 +107,24 @@ coReplicate f = coiter (\_ -> f) unit
 
 convertToState :: forall s a. Freer (StateF s) a -> State s a
 convertToState fr = monadicWithCofreeT fr $ coReplicate handleStateT
+
+handleStateT2 :: forall s. Show s => s -> WtfT (StateF s) Effect s
+handleStateT2 s = WtfT case _ of
+  Get lbz ->
+    do
+      logShow "get"
+      pure $ Tuple (coerce (symm lbz) s) s
+  Put s' lbz ->
+    do
+      log $ "put: " <> show s'
+      pure $ Tuple (coerce (symm lbz) unit) s'
+
+evalStateWithEffect :: forall s a. Show s => Freer (StateF s) a -> s -> Effect a
+evalStateWithEffect fr s = monadicWithCofreeT fr $ (void $ coiter handleStateT2 s)
+
+main :: Effect Unit
+main = do
+  logShow $ evalStateT test 0
+  logShow $ evalState (convertToState test) 0
+  a <- evalStateWithEffect test 0
+  logShow a
