@@ -2,7 +2,8 @@ module Wtf where
 
 import Prelude
 
-import Control.Comonad.Cofree (Cofree, buildCofree, tail)
+import Control.Apply (lift2)
+import Control.Comonad.Cofree (Cofree, buildCofree, head, tail)
 import Control.Monad.Free (Free, liftF, resume)
 import Control.Monad.State (State, evalState, get, put)
 import Data.Coyoneda (Coyoneda, liftCoyoneda, unCoyoneda)
