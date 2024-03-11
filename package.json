@@ -11,8 +11,8 @@
   "license": "ISC",
   "dependencies": {
     "esbuild": "^0.16.10",
-    "purescript": "^0.15.7",
-    "purs-tidy": "^0.9.2",
+    "purescript": "^0.15.13",
+    "purs-tidy": "^0.9.3",
     "spago": "^0.20.9"
   }
 }

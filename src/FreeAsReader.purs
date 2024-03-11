@@ -4,14 +4,12 @@ import Prelude
 
 import Control.Monad.Free (Free, liftF, resume')
 import Control.Monad.State (State, get, put, runState)
+import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Class.Console (logShow)
 
 data RFree f a = RFree (forall m. Monad m => (f ~> m) -> m a)
-
-runRFree :: forall f m. Monad m => (f ~> m) -> RFree f ~> m
-runRFree f (RFree m) = m f
 
 toFree :: forall f. RFree f ~> Free f
 toFree (RFree run) = run liftF
@@ -30,6 +28,9 @@ fromFree m = RFree (run m)
 
     evalRight :: a -> m a
     evalRight a = pure a
+
+runRFree :: forall f m. Monad m => (f ~> m) -> RFree f ~> m
+runRFree f (RFree m) = m f
 
 liftRF :: forall f. f ~> RFree f
 liftRF f = RFree \hoist -> hoist f

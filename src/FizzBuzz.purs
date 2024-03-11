@@ -2,23 +2,29 @@ module FizzBuzz where
 
 import Prelude
 
+import Control.Alternative (guard)
+import Control.Apply (lift2)
 import Control.Safely (for_)
 import Data.Array ((..))
+import Data.Maybe (Maybe, fromMaybe)
 import Effect (Effect)
 import Effect.Class.Console (log)
 
-fizz :: Int -> String
-fizz i = if i `mod` 3 == 0 then "Fizz" else ""
+withMultiple :: Int -> String -> Int -> Maybe String
+withMultiple n s i = guard (i `mod` n == 0) $> s
 
-buzz :: Int -> String
-buzz i = if i `mod` 5 == 0 then "Buzz" else ""
+fizz :: Int -> Maybe String
+fizz = withMultiple 3 "Fizz"
 
-fallback :: forall m. Monoid m => Eq m => m -> m -> m
-fallback s t = if t == mempty then s else t
+buzz :: Int -> Maybe String
+buzz = withMultiple 5 "Buzz"
 
-fizzbuzz :: Int -> String
-fizzbuzz = (fallback <<< show) <*> (fizz <> buzz)
+fizzBuzz :: Int -> Maybe String
+fizzBuzz = fizz <> buzz
+
+fizzBuzzWithNum :: Int -> String
+fizzBuzzWithNum = lift2 fromMaybe show fizzBuzz
 
 main :: Effect Unit
 main = do
-  for_ (0 .. 100) (log <<< fizzbuzz)
+  for_ (0 .. 100) (log <<< fizzBuzzWithNum)

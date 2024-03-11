@@ -34,6 +34,7 @@ to generate this file without the comments in this block.
   , "prelude"
   , "profunctor-lenses"
   , "qualified-do"
+  , "record"
   , "run"
   , "safely"
   , "st"

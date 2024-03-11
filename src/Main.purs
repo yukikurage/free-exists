@@ -3,6 +3,7 @@ module Main where
 import Prelude
 
 import Control.Monad.Free (Free, liftF, resume)
+import Control.Monad.Reader (ReaderT(..), ask, runReaderT)
 import Control.Monad.ST (ST, run)
 import Data.Array (concat, head, (..))
 import Data.Either (Either(..))
@@ -10,9 +11,13 @@ import Data.Foldable (foldM)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Effect (Effect)
+import Effect.Class (liftEffect)
 import Effect.Console (log)
 import IntPlus as IntPlus
 import Lan (Lan, lan, unLan)
+import Prim.Row (class Cons, class Lacks)
+import Record.Builder (Builder, modify)
+import Type.Proxy (Proxy(..))
 
 data TestF f
   = Log String f
@@ -47,13 +52,6 @@ runTestF = resume >>> case _ of
     Feedback t -> unLan (\arr callback -> runTestF $ callback $ head arr) t -- return head
     Traverse arr -> concat <$> traverse runTestF arr -- traverse
 
-main :: Effect Unit
-main = do
-  -- Result:  Just 1
-  result <- runTestF test
-  log $ show result
-  log $ show value6
-
 main2 :: Effect Int
 main2 = foldM
   do
@@ -85,3 +83,34 @@ value6 = IntPlus.do
   1
   2
   3
+
+class Monad m <= MyMonad m where
+  logSomething :: String -> m Unit
+  readSomething :: m String
+
+program :: forall m. MyMonad m => m String
+program = do
+  r <- readSomething
+  logSomething $ r <> "!"
+  pure $ "return: " <> r
+
+--
+
+newtype MyMonadType a = MyMonadType (ReaderT String Effect a)
+
+derive newtype instance Functor MyMonadType
+derive newtype instance Apply MyMonadType
+derive newtype instance Applicative MyMonadType
+derive newtype instance Bind MyMonadType
+derive newtype instance Monad MyMonadType
+instance MyMonad MyMonadType where
+  logSomething s = MyMonadType $ liftEffect $ log s
+  readSomething = MyMonadType $ ask
+
+runMyMonadType :: forall a. String -> MyMonadType a -> Effect a
+runMyMonadType s (MyMonadType m) = runReaderT m s
+
+main = do
+  res <- runMyMonadType "hello" program
+  log $ res
+  pure unit
