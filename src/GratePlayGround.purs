@@ -126,4 +126,8 @@ niceFunctionPairSetterTest = over (pairGrate <<< niceFunctionGrate) (_ <> "!") n
 -- | f 5 == "Hellooooo Hellooooo"
 -- | g 5 == "Worrrrrld Worrrrrld"
 niceFunctionPairZipperTest :: NiceFunctionPair String
-niceFunctionPairZipperTest = zipFWithOf (pairGrate <<< niceFunctionGrate) (intercalate " ") niceFunctionPair
+niceFunctionPairZipperTest =
+  zipFWithOf
+    (pairGrate <<< niceFunctionGrate)
+    (intercalate " ")
+    [ niceFunctionPair, niceFunctionPair ]
