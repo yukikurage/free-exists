@@ -8,6 +8,7 @@ import Control.Monad.State (State, evalState, get, put)
 import Data.Either (Either(..))
 import Data.Tuple (Tuple(..))
 import Effect (Effect)
+import Effect.Aff.Class (class MonadAff)
 import Effect.Class.Console (logShow)
 
 -- https://harrisonwl.github.io/assets/papers/hosc-cheapthreads.pdf
@@ -53,7 +54,21 @@ processing = do
 program :: ResumptionT (State Int) (Array Int)
 program = do
   Tuple results _ <- concurrent polling processing
-  pure results
+  pure results -- [0,1,2]
+
+-- With Aff ?
+concurrentAff :: forall m a b. MonadAff m => ResumptionT m a -> ResumptionT m b -> ResumptionT m (Tuple a b)
+concurrentAff left right = goL left right
+  where
+  goL :: ResumptionT m a -> ResumptionT m b -> ResumptionT m (Tuple a b)
+  goL l r = case resume l of
+    Left ml -> liftF ml >>= \l' -> goR l' r
+    Right a -> (\a' -> Tuple a a') <$> r
+
+  goR :: ResumptionT m a -> ResumptionT m b -> ResumptionT m (Tuple a b)
+  goR l r = case resume r of
+    Left mr -> liftF mr >>= \r' -> goL l r'
+    Right a -> (\a' -> Tuple a' a) <$> l
 
 main :: Effect Unit
 main = do
