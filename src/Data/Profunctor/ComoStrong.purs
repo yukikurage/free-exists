@@ -36,4 +36,3 @@ test x = case c x of _ -> c x <> ""
 
 main :: Effect Unit
 main = logShow $ test 0
-x
