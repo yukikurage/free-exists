@@ -54,7 +54,7 @@ instance Functor m => MonadEffect (Concurrent m) where
 instance Functor m => MonadAff (Concurrent m) where
   liftAff aff = Async (map Done aff)
 
-hoistConcurrent :: forall m n. Functor m => (m ~> n) -> Concurrent m ~> Concurrent n
+hoistConcurrent :: forall m n a. Functor m => (m ~> n) -> Concurrent m ~> Concurrent n
 hoistConcurrent f = case _ of
   Done a -> Done a
   Async aff -> Async (map (hoistConcurrent f) aff)
