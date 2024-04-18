@@ -12,7 +12,9 @@ to generate this file without the comments in this block.
 -}
 { name = "my-project"
 , dependencies =
-  [ "arrays"
+  [ "aff"
+  , "arrays"
+  , "avar"
   , "console"
   , "contravariant"
   , "control"
@@ -26,10 +28,12 @@ to generate this file without the comments in this block.
   , "free"
   , "functors"
   , "identity"
+  , "js-timers"
   , "lazy"
   , "leibniz"
   , "lists"
   , "maybe"
+  , "naturals"
   , "newtype"
   , "ordered-collections"
   , "pairs"
